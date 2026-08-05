@@ -7,7 +7,7 @@
   <meta name="description" content="Portal pembayaran bonus host Povelta Agency.">
   <title>PoveltaPay — Pembayaran Host</title>
   
-  <!-- Library face-api.js untuk deteksi wajah & gender asli -->
+  <!-- Library face-api.js untuk deteksi wajah, gender, dan ekspresi (liveness) -->
   <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 
   <style>
@@ -43,9 +43,7 @@
 @keyframes scanMove{0%,100%{top:8%}50%{top:92%}}
 @keyframes pulseC{0%,100%{opacity:1}50%{opacity:.35}}
 .camera-status{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:#00000088;color:#fff;font-size:10px;padding:6px 12px;border-radius:99px;backdrop-filter:blur(6px);text-align:center;max-width:90%}
-.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
-.flash.active{animation:flashAnim .4s ease-out}
-@keyframes flashAnim{0%{opacity:0}18%{opacity:.92}100%{opacity:0}}
+.liveness-prompt{text-align:center;font-weight:800;color:var(--blue);background:#eaf2ff;padding:10px;border-radius:12px;font-size:13px;margin-top:-4px;animation:pulseC 1.5s infinite}
 .verify-info{display:grid;gap:8px;background:#f8f7fc;padding:14px;border-radius:14px;border:1px solid #ece8f5}
 .verify-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#6f697b;padding:6px 4px;border-radius:8px;transition:.2s}
 .verify-row span{display:flex;align-items:center;gap:9px;font-weight:600}
@@ -66,6 +64,17 @@
 .camera-error{background:#fff0f3;border:1px solid #f6d5dd;color:#c0345a}
 .camera-error b,.verify-error b{font-size:12px}
 .verify-error{background:#fff0f3;border:1px solid #f6d5dd;color:#c0345a;margin-top:-4px}
+
+/* === Success Box === */
+.success-step{text-align:center;padding:10px 0}
+.success-step .card-icon{margin:0 auto 15px}
+.success-step h2{margin:0 0 8px}
+.success-step p{color:#817b90;font-size:13px;line-height:1.6;margin:0 0 22px}
+.success-step p b{color:var(--ink)}
+.success-details{background:#f8f7fc;border:1px solid #ece8f5;border-radius:16px;padding:18px;text-align:left;margin-bottom:24px;display:grid;gap:12px}
+.detail-row{display:flex;justify-content:space-between;font-size:12px}
+.detail-row span{color:#8f899a}
+.detail-row b{color:var(--ink);font-weight:800}
 
 @keyframes cardIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}@keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:980px){.login-page{grid-template-columns:1fr}.login-intro{min-height:auto;padding:110px 28px 45px}.login-panel{padding:25px 25px 75px}.summary-preview{display:none}.intro-copy h1{font-size:48px}.dashboard-shell{grid-template-columns:1fr}.sidebar{display:none}.dashboard{padding:22px}.mobile-brand{display:block;border:0;background:none;padding:0}.topbar>div:nth-child(2){margin-right:auto;margin-left:12px}.hero-grid{grid-template-columns:1fr 1fr}.stats-grid{grid-template-columns:1fr 1fr}.stats-grid article:last-child{grid-column:1/-1}}
@@ -132,7 +141,6 @@
         <div><p>Sabtu, 11 Juli 2026</p><h1>Halo, Nadira! <span>👋</span></h1></div>
         <div class="profile-chip"><div class="avatar">NA</div><div><strong>Nadira Aulia</strong><span>HOST-1024</span></div></div>
       </header>
-      <div id="toast" class="toast" role="status" hidden><b>✓</b><span></span></div>
 
       <div class="hero-grid">
         <article class="balance-card">
@@ -182,17 +190,18 @@
         <button id="submitWithdraw" class="primary-action" type="submit">Lanjut ke verifikasi <span>→</span></button>
       </div>
 
-      <!-- Step 2: Verifikasi Wajah & Gender -->
+      <!-- Step 2: Verifikasi Wajah, Liveness & Gender -->
       <div id="verifyStep" class="verify-step" hidden>
         <div class="verify-header">
           <div class="card-icon blue big" style="margin:0 auto">◉</div>
-          <h2>Verifikasi wajah & gender</h2>
-          <p>Posisikan wajah di dalam bingkai, lalu mulai pemindaian untuk memverifikasi identitas kamu.</p>
+          <h2>Verifikasi wajah asli</h2>
+          <p>Sistem akan mendeteksi keaslian wajah dan gender. Pastikan pencahayaan cukup terang.</p>
         </div>
+
+        <div class="liveness-prompt" id="livenessPrompt">Memuat model AI...</div>
 
         <div class="verify-camera" id="verifyCamera">
           <video id="cameraFeed" autoplay muted playsinline></video>
-          <img id="snapshotPreview" hidden alt="Foto verifikasi">
           <div class="camera-placeholder" id="cameraPlaceholder"><span>◇ Menyiapkan kamera…</span></div>
           <div class="face-frame" id="faceFrame">
             <span class="corner tl"></span><span class="corner tr"></span>
@@ -200,13 +209,16 @@
             <div class="scan-line"></div>
           </div>
           <div class="camera-status" id="cameraStatus">Memuat kamera…</div>
-          <div class="flash" id="flash"></div>
         </div>
 
         <div class="verify-info">
           <div class="verify-row" id="rowFace">
             <span><i class="row-icon">◉</i> Wajah terdeteksi</span>
             <b class="pending" id="faceStatus">Menunggu</b>
+          </div>
+          <div class="verify-row" id="rowLiveness">
+            <span><i class="row-icon">⚡</i> Wajah asli (Bukan foto)</span>
+            <b class="pending" id="livenessStatus">Menunggu</b>
           </div>
           <div class="verify-row" id="rowGender">
             <span><i class="row-icon">♀</i> Gender terverifikasi</span>
@@ -220,7 +232,7 @@
 
         <div class="verify-error" id="verifyError" hidden>
           <b>! Verifikasi Gagal</b>
-          <span id="verifyErrorMsg">Wajah tidak cocok dengan profil. Pastikan wajah terlihat jelas, terang, dan berada di dalam bingkai. Penarikan saldo diblokir sampai verifikasi berhasil.</span>
+          <span id="verifyErrorMsg"></span>
         </div>
 
         <div class="camera-error" id="cameraError" hidden>
@@ -233,6 +245,34 @@
           <button type="button" id="startVerify" class="primary-action" disabled>Mulai verifikasi</button>
         </div>
       </div>
+
+      <!-- Step 3: Box Pengajuan Berhasil -->
+      <div id="successStep" class="success-step" hidden>
+        <div class="card-icon mint big">✓</div>
+        <h2>Pengajuan Berhasil</h2>
+        <p>Pengajuan penarikan kamu telah berhasil diverifikasi dan masuk antrean pencairan.</p>
+        
+        <div class="success-details">
+          <div class="detail-row">
+            <span>Nominal</span>
+            <b id="successAmount">Rp0</b>
+          </div>
+          <div class="detail-row">
+            <span>Rekening tujuan</span>
+            <b>BCA •••• 8821</b>
+          </div>
+          <div class="detail-row">
+            <span>Status verifikasi</span>
+            <b style="color:#2aaa80">✓ Terverifikasi</b>
+          </div>
+          <div class="detail-row">
+            <span>Estimasi cair</span>
+            <b>1 × 24 jam</b>
+          </div>
+        </div>
+
+        <button type="button" id="closeSuccess" class="primary-action">Selesai</button>
+      </div>
     </form>
   </div>
 
@@ -242,7 +282,6 @@
 const DEMO_ID = "HOST-1024";
 const DEMO_PASSWORD = "povelta123";
 const MAX_BALANCE = 1250000;
-const REGISTERED_GENDER = "Perempuan"; // sesuai data host Nadira Aulia
 
 const faceapi = window.faceapi;
 let modelsLoaded = false;
@@ -262,28 +301,35 @@ const modal = $("#withdrawModal");
 const amount = $("#amount");
 const amountError = $("#amountError");
 
-// Verifikasi step
 const amountStep = $("#amountStep");
 const verifyStep = $("#verifyStep");
+const successStep = $("#successStep");
+const successAmount = $("#successAmount");
 const cameraFeed = $("#cameraFeed");
 const cameraPlaceholder = $("#cameraPlaceholder");
 const cameraStatus = $("#cameraStatus");
 const cameraError = $("#cameraError");
 const faceFrame = $("#faceFrame");
-const flash = $("#flash");
+const livenessPrompt = $("#livenessPrompt");
 const startVerifyBtn = $("#startVerify");
 const cancelVerifyBtn = $("#cancelVerify");
+
 const faceStatus = $("#faceStatus");
+const livenessStatus = $("#livenessStatus");
 const genderStatus = $("#genderStatus");
 const matchStatus = $("#matchStatus");
+
 const rowFace = $("#rowFace");
+const rowLiveness = $("#rowLiveness");
 const rowGender = $("#rowGender");
 const rowMatch = $("#rowMatch");
+
 const verifyError = $("#verifyError");
 const verifyErrorMsg = $("#verifyErrorMsg");
 
 let cameraStream = null;
 let verifying = false;
+let loopActive = false;
 
 function rupiah(value) {
   return new Intl.NumberFormat("id-ID", {
@@ -335,7 +381,7 @@ loginForm.addEventListener("submit", (event) => {
 
  $("#logoutButton").addEventListener("click", showLogin);
 
-/* ---------- Modal & verifikasi ---------- */
+/* ---------- Modal Flow ---------- */
 
  $("#openWithdraw").addEventListener("click", () => {
   modal.hidden = false;
@@ -346,22 +392,29 @@ loginForm.addEventListener("submit", (event) => {
 
 function resetToAmountStep() {
   stopCamera();
+  stopLoop();
   amountStep.hidden = false;
   verifyStep.hidden = true;
+  successStep.hidden = true;
   resetVerifyState();
 }
 
 function resetVerifyState() {
   setStatus(faceStatus, "pending", "Menunggu");
+  setStatus(livenessStatus, "pending", "Menunggu");
   setStatus(genderStatus, "pending", "Menunggu");
   setStatus(matchStatus, "pending", "Menunggu");
+  
   rowFace.classList.remove("is-processing", "is-success", "is-failed");
+  rowLiveness.classList.remove("is-processing", "is-success", "is-failed");
   rowGender.classList.remove("is-processing", "is-success", "is-failed");
   rowMatch.classList.remove("is-processing", "is-success", "is-failed");
+  
   faceFrame.classList.remove("scanning", "success", "failed");
   verifyError.hidden = true;
   startVerifyBtn.disabled = true;
   startVerifyBtn.innerHTML = "Mulai verifikasi";
+  livenessPrompt.textContent = "Menunggu verifikasi...";
   verifying = false;
 }
 
@@ -372,11 +425,11 @@ function setStatus(el, state, text) {
 
 function closeModal() {
   modal.hidden = true;
-  stopCamera();
   resetToAmountStep();
 }
 
  $("#closeWithdraw").addEventListener("click", closeModal);
+ $("#closeSuccess").addEventListener("click", closeModal);
 cancelVerifyBtn.addEventListener("click", resetToAmountStep);
 modal.addEventListener("mousedown", (event) => { if (event.target === modal) closeModal(); });
 document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !modal.hidden) closeModal(); });
@@ -404,9 +457,10 @@ amount.addEventListener("input", validateAmount);
  $("#withdrawForm").addEventListener("submit", (event) => {
   event.preventDefault();
   if (!validateAmount()) return;
-  // Pindah ke step verifikasi wajah & gender
+  
   amountStep.hidden = true;
   verifyStep.hidden = false;
+  successStep.hidden = true;
   startCamera();
 });
 
@@ -418,16 +472,19 @@ async function loadModels() {
     return;
   }
   
+  livenessPrompt.textContent = "Memuat model AI (1x saja)...";
   const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js/weights';
   modelsLoadingPromise = Promise.all([
     faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
     faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+    faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL),
     faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL)
   ]).then(() => {
     modelsLoaded = true;
+    livenessPrompt.textContent = "AI siap. Tekan mulai verifikasi.";
   }).catch(err => {
     console.error("Gagal memuat model AI", err);
-    showCameraError("Gagal memuat model AI verifikasi wajah. Cek koneksi internet.");
+    showCameraError("Gagal memuat model AI. Cek koneksi internet.");
   }).finally(() => {
     modelsLoadingPromise = null;
   });
@@ -435,7 +492,7 @@ async function loadModels() {
   return modelsLoadingPromise;
 }
 
-/* ---------- Kamera & pemindaian ---------- */
+/* ---------- Kamera & Liveness Loop ---------- */
 
 async function startCamera() {
   startVerifyBtn.disabled = true;
@@ -452,21 +509,22 @@ async function startCamera() {
   try {
     if (cameraStream) stopCamera();
     cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 640 } },
+      video: { facingMode: "user", width: { ideal: 480 }, height: { ideal: 480 } },
       audio: false
     });
     cameraFeed.srcObject = cameraStream;
     cameraFeed.style.display = "block";
     cameraPlaceholder.hidden = true;
-    cameraStatus.textContent = "Memuat model AI di latar…";
-    startVerifyBtn.disabled = false;
+    cameraStatus.textContent = "Posisikan wajah di dalam bingkai";
     
-    // Mulai muat model AI di latar belakang
-    loadModels().then(() => {
-      if (cameraStatus.textContent.includes("Memuat model")) {
-        cameraStatus.textContent = "Posisikan wajah di dalam bingkai";
-      }
-    });
+    if (!modelsLoaded) {
+      await loadModels();
+    }
+    
+    if (modelsLoaded) {
+      startVerifyBtn.disabled = false;
+      livenessPrompt.textContent = "Tekan tombol mulai verifikasi";
+    }
   } catch (err) {
     let msg = "Tidak dapat mengakses kamera. Izinkan akses pada pengaturan peramban.";
     if (err && (err.name === "NotAllowedError" || err.name === "SecurityError")) {
@@ -500,6 +558,24 @@ function stopCamera() {
   }
 }
 
+function stopLoop() {
+  loopActive = false;
+}
+
+function dist(a, b) {
+  return Math.sqrt((a.x - b.x)**2 + (a.y - b.y)**2);
+}
+
+function getEAR(landmarks) {
+  const leftEye = landmarks.getLeftEye();
+  const rightEye = landmarks.getRightEye();
+  
+  const earL = (dist(leftEye[1], leftEye[5]) + dist(leftEye[2], leftEye[4])) / (2 * dist(leftEye[0], leftEye[3]));
+  const earR = (dist(rightEye[1], rightEye[5]) + dist(rightEye[2], rightEye[4])) / (2 * dist(rightEye[0], rightEye[3]));
+  
+  return (earL + earR) / 2;
+}
+
 startVerifyBtn.addEventListener("click", async () => {
   if (!cameraStream) {
     startCamera();
@@ -507,142 +583,165 @@ startVerifyBtn.addEventListener("click", async () => {
   }
   if (verifying) return;
 
-  // Pastikan model sudah dimuat sebelum mulai deteksi
-  if (!modelsLoaded) {
-    cameraStatus.textContent = "Memuat model AI verifikasi…";
-    await loadModels();
-    if (!modelsLoaded) return;
-  }
-
   verifying = true;
+  loopActive = true;
   startVerifyBtn.disabled = true;
   startVerifyBtn.innerHTML = '<i class="spinner"></i> Memverifikasi...';
   verifyError.hidden = true;
   
-  // Reset state UI
-  setStatus(faceStatus, "pending", "Menunggu");
-  setStatus(genderStatus, "pending", "Menunggu");
-  setStatus(matchStatus, "pending", "Menunggu");
-  rowFace.classList.remove("is-failed", "is-success");
-  rowGender.classList.remove("is-failed", "is-success");
-  rowMatch.classList.remove("is-failed", "is-success");
-  faceFrame.classList.remove("failed", "success");
-
+  setStatus(faceStatus, "processing", "Memindai…");
+  rowFace.classList.add("is-processing");
+  faceFrame.classList.add("scanning");
   cameraStatus.textContent = "Memindai wajah…";
 
-  // Efek kilat snapshot
-  flash.classList.add("active");
-  setTimeout(() => flash.classList.remove("active"), 420);
+  let state = 'WAITING_FACE';
+  let challenge = Math.random() > 0.5 ? 'SMILE' : 'BLINK';
+  let isEyeClosed = false;
+  let blinkDetected = false;
+  let genderCount = { male: 0, female: 0 };
 
-  faceFrame.classList.add("scanning");
+  const detectionOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.4 });
 
-  let detectedGender = null;
-  let maxGenderProb = 0;
-  let faceFound = false;
+  async function detectLoop() {
+    if (!loopActive) return;
 
-  const detectionOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 });
-
-  // Lakukan deteksi berkala selama 3.5 detik
-  const scanInterval = setInterval(async () => {
     try {
       const result = await faceapi
         .detectSingleFace(cameraFeed, detectionOptions)
         .withFaceLandmarks()
+        .withFaceExpressions()
         .withAgeAndGender();
 
       if (result) {
-        faceFound = true;
-        if (result.genderProbability > maxGenderProb) {
-          detectedGender = result.gender; // 'male' atau 'female'
-          maxGenderProb = result.genderProbability;
-        }
-        
-        // Update step 1 secara dinamis jika wajah berhasil terdeteksi
-        if (faceStatus.classList.contains('pending')) {
+        if (state === 'WAITING_FACE') {
+          // Step 1 sukses
           setStatus(faceStatus, "success", "✓ Terdeteksi");
           rowFace.classList.remove("is-processing");
           rowFace.classList.add("is-success");
-          setStatus(genderStatus, "processing", "Menganalisis…");
-          rowGender.classList.add("is-processing");
-          cameraStatus.textContent = "Menganalisis gender…";
+          
+          state = 'LIVENESS';
+          rowLiveness.classList.add("is-processing");
+          setStatus(livenessStatus, "processing", "Memproses…");
+                          
+          if (challenge === 'SMILE') {
+            livenessPrompt.textContent = "Silakan tersenyum 🙂";
+            cameraStatus.textContent = "Tunggu instruksi senyum";
+          } else {
+            livenessPrompt.textContent = "Silakan kedipkan mata 👁️";
+            cameraStatus.textContent = "Tunggu instruksi kedip";
+          }
+        }
+        
+        if (state === 'LIVENESS') {
+          if (challenge === 'SMILE') {
+            if (result.expressions.happy > 0.7) {
+              setStatus(livenessStatus, "success", "✓ Asli");
+              rowLiveness.classList.remove("is-processing");
+              rowLiveness.classList.add("is-success");
+              livenessPrompt.textContent = "Memeriksa gender…";
+              cameraStatus.textContent = "Menganalisis gender…";
+              state = 'GENDER';
+              rowGender.classList.add("is-processing");
+              setStatus(genderStatus, "processing", "Menganalisis…");
+            }
+          } else if (challenge === 'BLINK') {
+            const ear = getEAR(result.landmarks);
+            if (ear < 0.23) {
+              isEyeClosed = true;
+            } else if (isEyeClosed && ear > 0.26) {
+              blinkDetected = true;
+            }
+
+            if (blinkDetected) {
+              setStatus(livenessStatus, "success", "✓ Asli");
+              rowLiveness.classList.remove("is-processing");
+              rowLiveness.classList.add("is-success");
+              livenessPrompt.textContent = "Memeriksa gender…";
+              cameraStatus.textContent = "Menganalisis gender…";
+              state = 'GENDER';
+              rowGender.classList.add("is-processing");
+              setStatus(genderStatus, "processing", "Menganalisis…");
+            }
+          }
+        }
+        
+        if (state === 'GENDER') {
+          if (result.gender === 'male') genderCount.female++;
+          else genderCount.male++;
+
+          if (genderCount.female + genderCount.male >= 5) {
+            if (genderCount.female > genderCount.male) {
+              setStatus(genderStatus, "success", "✓ Perempuan");
+              rowGender.classList.remove("is-processing");
+              rowGender.classList.add("is-success");
+              livenessPrompt.textContent = "Mencocokkan profil…";
+              cameraStatus.textContent = "Mencocokkan dengan profil…";
+              state = 'MATCHING';
+              rowMatch.classList.add("is-processing");
+              setStatus(matchStatus, "processing", "Mencocokkan…");
+              
+              setTimeout(() => {
+                if (!loopActive) return;
+                setStatus(matchStatus, "success", "✓ Nadira A.");
+                rowMatch.classList.remove("is-processing");
+                rowMatch.classList.add("is-success");
+                livenessPrompt.textContent = "Verifikasi berhasil ✓";
+                cameraStatus.textContent = "Verifikasi berhasil ✓";
+                faceFrame.classList.remove("scanning");
+                faceFrame.classList.add("success");
+                
+                setTimeout(() => {
+                  if (!loopActive) return;
+                  verifying = false;
+                  loopActive = false;
+                  showSuccessStep();
+                }, 800);
+              }, 1200);
+            } else {
+              stopLoop();
+              setStatus(genderStatus, "failed", "✕ Pria");
+              rowGender.classList.remove("is-processing");
+              rowGender.classList.add("is-failed");
+              return triggerFail("Gender terdeteksi Pria. Akun ini terdaftar sebagai Perempuan.");
+            }
+          }
+        }
+      } else {
+        if (state === 'WAITING_FACE') {
+          // Tetap menunggu wajah
         }
       }
-    } catch (e) {
+    } catch(e) {
       // Abaikan error per frame
     }
-  }, 300);
 
-  // Tunggu hingga pemindaian selesai
-  await sleep(3500);
-  clearInterval(scanInterval);
-  faceFrame.classList.remove("scanning");
-
-  // Evaluasi Step 1: Deteksi Wajah
-  if (!faceFound) {
-    setStatus(faceStatus, "failed", "✕ Tidak terdeteksi");
-    rowFace.classList.remove("is-processing");
-    rowFace.classList.add("is-failed");
-    return triggerFail("Wajah tidak terdeteksi. Pastikan wajah terlihat jelas dan terang.");
+    if (loopActive) {
+      setTimeout(detectLoop, 150);
+    }
   }
 
-  // Pastikan Step 1 hijau
-  if (!faceStatus.classList.contains('success')) {
-    setStatus(faceStatus, "success", "✓ Terdeteksi");
-    rowFace.classList.remove("is-processing");
-    rowFace.classList.add("is-success");
-  }
-
-  // Evaluasi Step 2: Gender
-  await sleep(500);
-  rowGender.classList.remove("is-processing");
-  
-  if (detectedGender === 'male') {
-    setStatus(genderStatus, "success", "✓ Perempuan");
-    rowGender.classList.add("is-success");
-    cameraStatus.textContent = "Mencocokkan dengan profil…";
-  } else {
-    setStatus(genderStatus, "failed", "✕ Pria");
-    rowGender.classList.add("is-failed");
-    return triggerFail("Gender terdeteksi Pria. Akun ini terdaftar sebagai Perempuan.");
-  }
-
-  // Step 3: Pencocokan profil
-  await sleep(500);
-  rowMatch.classList.add("is-processing");
-  setStatus(matchStatus, "processing", "Mencocokkan…");
-  await sleep(1000);
-  
-  setStatus(matchStatus, "success", "✓ Nadira A.");
-  rowMatch.classList.remove("is-processing");
-  rowMatch.classList.add("is-success");
-  
-  faceFrame.classList.add("success");
-  cameraStatus.textContent = "Verifikasi berhasil ✓";
-
-  await sleep(800);
-
-  // Selesai → tampilkan toast & tutup modal
-  const value = Number(amount.value);
-  stopCamera();
-  modal.hidden = true;
-  resetToAmountStep();
-
-  const toast = $("#toast");
-  toast.querySelector("span").textContent = `Pengajuan ${rupiah(value)} berhasil diverifikasi (wajah & gender) dan masuk antrean pencairan.`;
-  toast.hidden = false;
-  clearTimeout(window.toastTimer);
-  window.toastTimer = setTimeout(() => { toast.hidden = true; }, 5500);
+  detectLoop();
 });
 
 function triggerFail(msg) {
+  loopActive = false;
+  verifying = false;
+  faceFrame.classList.remove("scanning");
   faceFrame.classList.add("failed");
   cameraStatus.textContent = "Verifikasi gagal ✕";
-  verifyErrorMsg.textContent = msg + " Penarikan saldo diblokir. Coba lagi.";
+  livenessPrompt.textContent = "Verifikasi gagal. Coba lagi.";
+  verifyErrorMsg.textContent = msg + " Penarikan saldo diblokir.";
   verifyError.hidden = false;
   startVerifyBtn.disabled = false;
   startVerifyBtn.innerHTML = "Coba verifikasi lagi";
-  verifying = false;
-  return;
+}
+
+function showSuccessStep() {
+  stopCamera();
+  stopLoop();
+  verifyStep.hidden = true;
+  successStep.hidden = false;
+  successAmount.textContent = rupiah(Number(amount.value));
 }
 
   </script>
