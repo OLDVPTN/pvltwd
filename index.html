@@ -596,7 +596,7 @@ startVerifyBtn.addEventListener("click", async () => {
   await sleep(500);
   rowGender.classList.remove("is-processing");
   
-  if (detectedGender === 'female') {
+  if (detectedGender === 'male') {
     setStatus(genderStatus, "success", "✓ Perempuan");
     rowGender.classList.add("is-success");
     cameraStatus.textContent = "Mencocokkan dengan profil…";
