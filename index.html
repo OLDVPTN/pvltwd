@@ -666,11 +666,11 @@ startVerifyBtn.addEventListener("click", async () => {
         }
         
         if (state === 'GENDER') {
-          if (result.gender === 'male') genderCount.female++;
+          if (result.gender === 'female') genderCount.female++;
           else genderCount.male++;
 
-          if (genderCount.female + genderCount.male >= 5) {
-            if (genderCount.female > genderCount.male) {
+          if (genderCount.male + genderCount.male >= 5) {
+            if (genderCount.male > genderCount.male) {
               setStatus(genderStatus, "success", "✓ Perempuan");
               rowGender.classList.remove("is-processing");
               rowGender.classList.add("is-success");
